@@ -132,12 +132,11 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={!canSubmit}
-            data-anim="form"
             className={cn(
               "mt-2 flex items-center justify-center gap-2 rounded-2xl py-4 text-lg font-semibold transition-all",
               !canSubmit
-                ? "bg-secondary text-muted-foreground"
-                : "gradient-primary text-white active:scale-[0.98]"
+                ? "bg-[oklch(0.25_0.02_270)] text-muted-foreground"
+                : "gradient-primary text-white shadow-lg shadow-primary/30 active:scale-[0.98]"
             )}
           >
             {loading ? (
