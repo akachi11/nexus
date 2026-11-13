@@ -1,8 +1,10 @@
 "use client";
 
-import { Search, TrendingUp, Flame, Award, ArrowUp, ArrowDown, Layers, Hexagon, Zap, Dog, ChevronDown, RefreshCw } from "lucide-react";
+import { Search, TrendingUp, Flame, Award, ArrowUp, ArrowDown, Layers, Hexagon, Zap, Dog, ChevronDown, RefreshCw, Coins } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useMarketData } from "@/hooks/use-market-data";
+import { useWalletStore } from "@/lib/store";
+import { useAuth } from "@/components/auth-provider";
 import { formatCurrency, formatPercent, formatCompactCurrency } from "@/components/format";
 import { MiniChart } from "@/components/mini-chart";
 import { MarketListSkeleton } from "@/components/skeleton";
@@ -41,10 +43,29 @@ export default function MarketsPage() {
   const [sortBy, setSortBy] = useState<"marketCap" | "volume" | "change24h">("marketCap");
   const [search, setSearch] = useState("");
 
+  const { user } = useAuth();
+  const { wallets, isLoaded, fetchWallets } = useWalletStore();
+
   useEffect(() => setMounted(true), []);
+  useEffect(() => { if (user && !isLoaded) fetchWallets(); }, [user, isLoaded, fetchWallets]);
 
   const activeFilter = mainTab === "crypto" ? cryptoFilter : stockFilter;
   const { assets, loading, error } = useMarketData(mainTab, activeFilter);
+
+  const userTokens = useMemo(() => {
+    if (!user) return [];
+    return wallets.flatMap((w) => w.tokens);
+  }, [user, wallets]);
+
+  const matchedUserTokens = useMemo(() => {
+    if (!search || mainTab !== "crypto") return [];
+    const q = search.toLowerCase();
+    return userTokens.filter(
+      (t) =>
+        (t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q)) &&
+        !assets.some((a) => a.symbol.toLowerCase() === t.symbol.toLowerCase()),
+    );
+  }, [search, mainTab, userTokens, assets]);
 
   const bluechips = useMemo(
     () => assets.filter((a) => ["BTC", "ETH"].includes(a.symbol)).slice(0, 2),
@@ -217,6 +238,36 @@ export default function MarketsPage() {
             />
           </div>
 
+          {/* User Tokens (search results) */}
+          {matchedUserTokens.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-muted-foreground">My Tokens</p>
+              {matchedUserTokens.map((token) => (
+                <div key={token.id} className="flex items-center gap-3 rounded-xl bg-card p-3">
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-lg"
+                    style={{ backgroundColor: (token.color || "#6366f1") + "22" }}
+                  >
+                    {token.icon || <Coins className="h-5 w-5" style={{ color: token.color || "#6366f1" }} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold">{token.symbol}</p>
+                      {token.isCustom && (
+                        <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">Custom</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{token.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatCurrency(token.price)}</p>
+                    <p className="text-xs text-muted-foreground">{token.balance} {token.symbol}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Asset List */}
           {loading ? (
             <MarketListSkeleton count={10} />
@@ -245,7 +296,7 @@ export default function MarketsPage() {
                   </div>
                 </div>
               ))}
-              {displayed.length === 0 && (
+              {displayed.length === 0 && matchedUserTokens.length === 0 && (
                 <div className="py-12 text-center text-muted-foreground">
                   <TrendingUp className="mx-auto mb-3 h-10 w-10 opacity-40" />
                   <p>No assets found</p>
