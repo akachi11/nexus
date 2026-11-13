@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, ArrowDownLeft, QrCode, ArrowLeftRight, Send, Plus, ChevronRight, Eye, EyeOff, TrendingDown } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, Send, Plus, ChevronRight, Eye, EyeOff, TrendingDown, LogOut } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useWalletStore } from "@/lib/store";
 import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatPercent, formatDate, formatTokenAmount } from "@/components/format";
@@ -22,13 +22,23 @@ function enrichToken(token: Token, priceMap: Record<string, { price: number; cha
 }
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const animScope = usePageTransition();
   const { wallets, transactions, activeWalletId, isLoaded, fetchWallets, fetchTransactions } = useWalletStore();
   const priceMap = useLivePrices();
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState<Date | undefined>(undefined);
   useEffect(() => setNow(new Date()), []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+    }
+    if (showMenu) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showMenu]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -94,12 +104,29 @@ export default function HomePage() {
           <p className="text-sm text-muted-foreground">Welcome back</p>
           <h1 className="text-xl font-bold">Numirelics</h1>
         </div>
-        <Link
-          href="/wallets"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
-        >
-          <QrCode className="h-5 w-5" />
-        </Link>
+        <div ref={menuRef} className="relative">
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
+          >
+            {user.firstName[0]}{user.lastName[0]}
+          </button>
+          {showMenu && (
+            <div className="absolute right-0 top-12 z-50 min-w-[180px] rounded-xl border border-border bg-card p-1 shadow-xl">
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              </div>
+              <button
+                onClick={() => { setShowMenu(false); logout(); }}
+                className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Balance Card */}
