@@ -17,6 +17,8 @@ export async function validateBody<T>(req: NextRequest, schema: ZodSchema<T>): P
 }
 
 export function handleApiError(error: unknown): Response {
+  if (error instanceof Error && "digest" in error) throw error;
+
   if (error instanceof AuthError) {
     return errorResponse(error.message, error.status);
   }

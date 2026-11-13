@@ -291,6 +291,7 @@ export async function GET(request: NextRequest) {
       updatedAt: Date.now(),
     });
   } catch (err) {
+    if (err instanceof Error && "digest" in err) throw err;
     const msg = err instanceof Error ? err.message : "Unknown error";
     if (type === "stocks") return NextResponse.json({ stocks: [], error: msg, updatedAt: Date.now() });
     if (type === "crypto") return NextResponse.json({ crypto: [], source: "error", updatedAt: Date.now() });
