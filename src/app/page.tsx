@@ -99,7 +99,7 @@ export default function HomePage() {
   return (
     <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6">
       {/* Header */}
-      <div data-anim="header" className="flex items-center justify-between">
+      <div data-anim="header" className="relative z-10 flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Welcome back</p>
           <h1 className="text-xl font-bold">Numirelics</h1>
