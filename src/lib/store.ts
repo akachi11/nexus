@@ -67,7 +67,7 @@ interface WalletStore {
   updateTokenPrice: (tokenId: string, price: number) => Promise<void>;
   fetchAdminTransactions: (status?: string) => Promise<void>;
   fetchAdminTokens: () => Promise<{ id: string; name: string; symbol: string; price: number; balance: number; value: number; isCustom: boolean; wallet: { name: string }; user: { firstName: string; lastName: string } }[]>;
-  fetchDashboard: () => Promise<{ stats: { pending: number; approved: number; rejected: number; totalVolume: number }; counts: { users: number; wallets: number; tokens: number; customTokens: number }; recentPending: unknown[] }>;
+  fetchDashboard: () => Promise<{ stats: { pending: number; approved: number; rejected: number; totalVolume: number }; counts: { users: number; wallets: number; tokens: number; customTokens: number }; recentPending: Array<{ _id: string; type: string; tokenData?: { symbol: string }; amount?: number; value?: number }> }>;
 }
 
 const EMPTY_WALLET: Wallet = {
@@ -213,7 +213,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     const res = await apiFetch<{
       stats: { pending: number; approved: number; rejected: number; totalVolume: number };
       counts: { users: number; wallets: number; tokens: number; customTokens: number };
-      recentPending: unknown[];
+      recentPending: Array<{ _id: string; type: string; tokenData?: { symbol: string }; amount?: number; value?: number }>;
     }>("/api/admin/dashboard");
     if (res.success) return res.data;
     return { stats: { pending: 0, approved: 0, rejected: 0, totalVolume: 0 }, counts: { users: 0, wallets: 0, tokens: 0, customTokens: 0 }, recentPending: [] };
