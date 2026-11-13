@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BarChart3, Clock, Wallet, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
 
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
@@ -13,8 +14,14 @@ const navItems = [
   { href: "/wallets", icon: Wallet, label: "Wallets" },
 ];
 
+const HIDDEN_PATHS = ["/login", "/register"];
+
 export function BottomNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  if (HIDDEN_PATHS.includes(pathname)) return null;
+  if (!user) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-xl safe-bottom">

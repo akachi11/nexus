@@ -8,17 +8,20 @@ import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatTokenAmount, shortenAddress } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 type Step = "form" | "confirm" | "sending" | "success" | "error";
 type InputMode = "crypto" | "fiat";
 
 export default function SendPage() {
   const router = useRouter();
-  const { wallets, activeWalletId, sendToken } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, activeWalletId, sendToken, isLoaded, fetchWallets } = useWalletStore();
   const priceMap = useLivePrices();
   const wallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
+  const tokens = wallet?.tokens ?? [];
 
-  const [selectedTokenId, setSelectedTokenId] = useState(wallet.tokens[0]?.id ?? "");
+  const [selectedTokenId, setSelectedTokenId] = useState(tokens[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
   const [showTokenPicker, setShowTokenPicker] = useState(false);
@@ -27,13 +30,14 @@ export default function SendPage() {
   const [inputMode, setInputMode] = useState<InputMode>("crypto");
 
   useEffect(() => {
+    if (!isLoaded) fetchWallets();
     setStep("form");
     setAmount("");
     setAddress("");
     setTouched({ amount: false, address: false });
   }, []);
 
-  const selectedToken = wallet.tokens.find((t) => t.id === selectedTokenId);
+  const selectedToken = tokens.find((t) => t.id === selectedTokenId);
   const livePrice = selectedToken ? (priceMap[selectedToken.symbol.toUpperCase()]?.price ?? selectedToken.price) : 0;
 
   const rawNum = parseFloat(amount) || 0;
@@ -73,7 +77,7 @@ export default function SendPage() {
     setStep("sending");
     await new Promise((r) => setTimeout(r, 2000));
     try {
-      sendToken(wallet.id, selectedTokenId, cryptoAmount, address);
+      await sendToken(wallet.id, selectedTokenId, cryptoAmount, address);
       setStep("success");
       setTimeout(() => router.replace("/"), 2500);
     } catch {
@@ -83,17 +87,25 @@ export default function SendPage() {
 
   const cryptoDisplay = formatTokenAmount(cryptoAmount);
 
+  if (!wallet) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (step === "success") {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
+      <div ref={animScope} className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
+        <div data-anim="result-icon" className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
           <CheckCircle2 className="h-10 w-10 text-[oklch(0.72_0.19_155)]" />
         </div>
-        <h2 className="text-xl font-bold">Request Submitted Successfully</h2>
-        <p className="text-center text-muted-foreground">
+        <h2 data-anim="result-text" className="text-xl font-bold">Request Submitted Successfully</h2>
+        <p data-anim="result-text" className="text-center text-muted-foreground">
           Your request to send {cryptoDisplay} {selectedToken?.symbol} to {shortenAddress(address)} is being reviewed
         </p>
-        <p className="text-sm text-muted-foreground">Redirecting to home...</p>
+        <p data-anim="result-text" className="text-sm text-muted-foreground">Redirecting to home...</p>
       </div>
     );
   }
@@ -191,8 +203,8 @@ export default function SendPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-24">
-      <div className="flex items-center gap-3">
+    <div ref={animScope} className="flex flex-col gap-5 px-4 pt-6 pb-24">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -200,7 +212,7 @@ export default function SendPage() {
       </div>
 
       {/* Token Picker */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Asset</label>
         <button
           onClick={() => setShowTokenPicker(!showTokenPicker)}
@@ -221,7 +233,7 @@ export default function SendPage() {
         </button>
         {showTokenPicker && (
           <div className="mt-2 flex flex-col gap-1 rounded-xl bg-card p-2">
-            {wallet.tokens.map((t) => {
+            {tokens.map((t) => {
               const tp = priceMap[t.symbol.toUpperCase()]?.price ?? t.price;
               return (
                 <button
@@ -246,7 +258,7 @@ export default function SendPage() {
       </div>
 
       {/* Amount */}
-      <div>
+      <div data-anim="form">
         <div className="mb-2 flex items-center justify-between">
           <label className="text-sm text-muted-foreground">Amount</label>
           {selectedToken && (
@@ -323,7 +335,7 @@ export default function SendPage() {
       </div>
 
       {/* Address */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Recipient Address</label>
         <div className="relative">
           <input

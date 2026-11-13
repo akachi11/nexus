@@ -8,6 +8,7 @@ import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 type Step = "form" | "confirm" | "processing" | "success" | "error";
 
@@ -20,11 +21,13 @@ const PAYMENT_METHODS = [
 
 export default function BuyPage() {
   const router = useRouter();
-  const { wallets, activeWalletId, buyToken } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, activeWalletId, buyToken, isLoaded, fetchWallets } = useWalletStore();
   const priceMap = useLivePrices();
   const wallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
+  const tokens = wallet?.tokens ?? [];
 
-  const [selectedTokenId, setSelectedTokenId] = useState(wallet.tokens[0]?.id ?? "");
+  const [selectedTokenId, setSelectedTokenId] = useState(tokens[0]?.id ?? "");
   const [fiatAmount, setFiatAmount] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState(PAYMENT_METHODS[0].id);
   const [showTokenPicker, setShowTokenPicker] = useState(false);
@@ -33,12 +36,13 @@ export default function BuyPage() {
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
+    if (!isLoaded) fetchWallets();
     setStep("form");
     setFiatAmount("");
     setTouched(false);
   }, []);
 
-  const selectedToken = wallet.tokens.find((t) => t.id === selectedTokenId);
+  const selectedToken = tokens.find((t) => t.id === selectedTokenId);
   const paymentMethod = PAYMENT_METHODS.find((p) => p.id === paymentMethodId) ?? PAYMENT_METHODS[0];
 
   const livePrice = selectedToken ? (priceMap[selectedToken.symbol.toUpperCase()]?.price ?? selectedToken.price) : 0;
@@ -71,7 +75,7 @@ export default function BuyPage() {
     setStep("processing");
     await new Promise((r) => setTimeout(r, 3000));
     try {
-      buyToken(wallet.id, selectedTokenId, effectiveAmount, fiatNum);
+      await buyToken(wallet.id, selectedTokenId, effectiveAmount, fiatNum);
       setStep("success");
       setTimeout(() => router.replace("/"), 2500);
     } catch {
@@ -79,17 +83,25 @@ export default function BuyPage() {
     }
   };
 
+  if (!wallet) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (step === "success") {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
+      <div ref={animScope} className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
+        <div data-anim="result-icon" className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
           <CheckCircle2 className="h-10 w-10 text-[oklch(0.72_0.19_155)]" />
         </div>
-        <h2 className="text-xl font-bold">Request Submitted Successfully</h2>
-        <p className="text-center text-muted-foreground">
+        <h2 data-anim="result-text" className="text-xl font-bold">Request Submitted Successfully</h2>
+        <p data-anim="result-text" className="text-center text-muted-foreground">
           Your request to buy {formatTokenAmount(effectiveAmount)} {selectedToken?.symbol} for {formatCurrency(fiatNum)} is being reviewed
         </p>
-        <p className="text-sm text-muted-foreground">Redirecting to home...</p>
+        <p data-anim="result-text" className="text-sm text-muted-foreground">Redirecting to home...</p>
       </div>
     );
   }
@@ -178,8 +190,8 @@ export default function BuyPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-24">
-      <div className="flex items-center gap-3">
+    <div ref={animScope} className="flex flex-col gap-5 px-4 pt-6 pb-24">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -187,7 +199,7 @@ export default function BuyPage() {
       </div>
 
       {/* Token Picker */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Asset</label>
         <button
           onClick={() => { setShowTokenPicker(!showTokenPicker); setShowPaymentPicker(false); }}
@@ -206,7 +218,7 @@ export default function BuyPage() {
         </button>
         {showTokenPicker && (
           <div className="mt-2 flex flex-col gap-1 rounded-xl bg-card p-2">
-            {wallet.tokens.map((t) => {
+            {tokens.map((t) => {
               const tp = priceMap[t.symbol.toUpperCase()]?.price ?? t.price;
               return (
                 <button
@@ -230,7 +242,7 @@ export default function BuyPage() {
       </div>
 
       {/* Fiat Amount */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Amount (USD)</label>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-muted-foreground">$</span>
@@ -260,7 +272,7 @@ export default function BuyPage() {
       </div>
 
       {/* Quick Amounts */}
-      <div className="flex gap-2">
+      <div data-anim="form" className="flex gap-2">
         {FIAT_PRESETS.map((p) => (
           <button
             key={p}
@@ -276,7 +288,7 @@ export default function BuyPage() {
       </div>
 
       {/* Payment Method */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Payment Method</label>
         <button
           onClick={() => { setShowPaymentPicker(!showPaymentPicker); setShowTokenPicker(false); }}

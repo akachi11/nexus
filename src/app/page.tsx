@@ -9,6 +9,9 @@ import { formatCurrency, formatPercent, formatDate, formatTokenAmount } from "@/
 import { TokenListSkeleton } from "@/components/skeleton";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { LandingPage } from "@/components/landing-page";
+import { useAuth } from "@/components/auth-provider";
+import { usePageTransition } from "@/hooks/use-gsap";
 import type { Token } from "@/lib/types";
 
 function enrichToken(token: Token, priceMap: Record<string, { price: number; change24h: number }>): Token {
@@ -19,18 +22,27 @@ function enrichToken(token: Token, priceMap: Record<string, { price: number; cha
 }
 
 export default function HomePage() {
-  const { wallets, transactions, activeWalletId } = useWalletStore();
+  const { user } = useAuth();
+  const animScope = usePageTransition();
+  const { wallets, transactions, activeWalletId, isLoaded, fetchWallets, fetchTransactions } = useWalletStore();
   const priceMap = useLivePrices();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [now, setNow] = useState<Date | undefined>(undefined);
   useEffect(() => setNow(new Date()), []);
 
+  useEffect(() => {
+    if (!isLoaded) {
+      fetchWallets();
+      fetchTransactions();
+    }
+  }, [isLoaded, fetchWallets, fetchTransactions]);
+
   const activeWallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
   const hasPrices = Object.keys(priceMap).length > 0;
 
   const enrichedTokens = useMemo(
-    () => activeWallet.tokens.map((t) => enrichToken(t, priceMap)),
-    [activeWallet.tokens, priceMap],
+    () => (activeWallet?.tokens ?? []).map((t) => enrichToken(t, priceMap)),
+    [activeWallet?.tokens, priceMap],
   );
 
   const totalBalance = useMemo(() => {
@@ -62,13 +74,25 @@ export default function HomePage() {
 
   const recentTx = transactions.slice(0, 5);
 
+  if (!user) {
+    return <LandingPage />;
+  }
+
+  if (!activeWallet) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6 px-4 pt-6">
+    <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-anim="header" className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="text-xl font-bold">NexusWallet</h1>
+          <h1 className="text-xl font-bold">Numirelics</h1>
         </div>
         <Link
           href="/wallets"
@@ -79,7 +103,7 @@ export default function HomePage() {
       </div>
 
       {/* Balance Card */}
-      <div className="gradient-primary rounded-2xl p-6 text-white">
+      <div data-anim="balance" className="gradient-primary rounded-2xl p-6 text-white">
         <div className="flex items-center gap-2">
           <p className="text-sm opacity-80">Total Balance</p>
           <button onClick={() => setBalanceVisible(!balanceVisible)} className="opacity-80 hover:opacity-100">
@@ -111,6 +135,7 @@ export default function HomePage() {
             <Link
               key={label}
               href={href}
+              data-anim="action"
               className="flex flex-col items-center gap-1.5 rounded-xl bg-white/10 py-3 text-white transition-colors hover:bg-white/20"
             >
               <Icon className="h-5 w-5" />
@@ -121,7 +146,7 @@ export default function HomePage() {
       </div>
 
       {/* Active Wallet Tokens */}
-      <div>
+      <div data-anim="section">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{activeWallet.name}</h2>
           <Link href={`/wallet/${activeWallet.id}`} className="text-sm text-primary">
@@ -138,6 +163,7 @@ export default function HomePage() {
               <Link
                 key={token.id}
                 href={`/token/${token.id}`}
+                data-anim="list-item"
                 className="flex items-center gap-3 rounded-xl bg-card p-3 transition-colors hover:bg-accent active:scale-[0.99]"
               >
                 <CryptoIcon symbol={token.symbol} size={40} fallbackColor={token.color} fallbackIcon={token.icon} />
@@ -165,7 +191,7 @@ export default function HomePage() {
       </div>
 
       {/* Recent Transactions */}
-      <div>
+      <div data-anim="section">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Recent Activity</h2>
           <Link href="/history" className="text-sm text-primary">
@@ -174,7 +200,7 @@ export default function HomePage() {
         </div>
         <div className="mt-3 flex flex-col gap-2">
           {recentTx.map((tx) => (
-            <div key={tx.id} className="flex items-center gap-3 rounded-xl bg-card p-3">
+            <div key={tx.id} data-anim="list-item" className="flex items-center gap-3 rounded-xl bg-card p-3">
               <div
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-full",

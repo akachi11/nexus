@@ -9,6 +9,7 @@ import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatPercent, formatTokenAmount, formatDate } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { usePageTransition } from "@/hooks/use-gsap";
 import type { Token } from "@/lib/types";
 
 function enrichToken(token: Token, priceMap: Record<string, { price: number; change24h: number }>): Token {
@@ -21,13 +22,17 @@ function enrichToken(token: Token, priceMap: Record<string, { price: number; cha
 export default function TokenDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { wallets, activeWalletId, transactions } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, activeWalletId, transactions, isLoaded, fetchWallets, fetchTransactions } = useWalletStore();
   const priceMap = useLivePrices();
   const [now, setNow] = useState<Date | undefined>(undefined);
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    setNow(new Date());
+    if (!isLoaded) { fetchWallets(); fetchTransactions(); }
+  }, []);
 
   const wallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
-  const rawToken = wallet.tokens.find((t) => t.id === id)
+  const rawToken = (wallet?.tokens ?? []).find((t) => t.id === id)
     ?? wallets.flatMap((w) => w.tokens).find((t) => t.id === id);
 
   const token = rawToken ? enrichToken(rawToken, priceMap) : null;
@@ -49,9 +54,9 @@ export default function TokenDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-6 pb-24">
+    <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6 pb-24">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -59,7 +64,7 @@ export default function TokenDetailPage() {
       </div>
 
       {/* Token Overview */}
-      <div className="flex flex-col items-center gap-3 py-4">
+      <div data-anim="balance" className="flex flex-col items-center gap-3 py-4">
         <CryptoIcon symbol={token.symbol} size={64} fallbackColor={token.color} fallbackIcon={token.icon} />
         <div className="text-center">
           <p className="text-3xl font-bold">{formatCurrency(token.value)}</p>
@@ -85,7 +90,7 @@ export default function TokenDetailPage() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid grid-cols-5 gap-2">
+      <div data-anim="section" className="grid grid-cols-5 gap-2">
         {[
           { icon: ArrowUpRight, label: "Send", href: `/send?token=${id}` },
           { icon: ArrowDownLeft, label: "Receive", href: "/receive" },
@@ -110,7 +115,7 @@ export default function TokenDetailPage() {
       </div>
 
       {/* Token Info */}
-      <div className="rounded-xl bg-card p-4">
+      <div data-anim="card" className="rounded-xl bg-card p-4">
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Token Info</h3>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
@@ -154,7 +159,7 @@ export default function TokenDetailPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {tokenTransactions.map((tx) => (
-              <div key={tx.id} className="flex items-center gap-3 rounded-xl bg-card p-3">
+              <div key={tx.id} data-anim="list-item" className="flex items-center gap-3 rounded-xl bg-card p-3">
                 <div
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full",

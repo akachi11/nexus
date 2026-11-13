@@ -24,7 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
           <div className="flex-1">
             <h1 className="text-lg font-bold">Admin Panel</h1>
-            <p className="text-xs text-muted-foreground">NexusWallet Management</p>
+            <p className="text-xs text-muted-foreground">Numirelics Management</p>
           </div>
           <div className="flex h-8 items-center rounded-full bg-primary/10 px-3">
             <span className="text-xs font-medium text-primary">Admin</span>

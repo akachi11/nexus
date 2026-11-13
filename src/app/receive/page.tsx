@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Copy, Check, Share2, ChevronDown, QrCode } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
 import { formatCurrency, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
 import { useLivePrices } from "@/hooks/use-market-data";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 const NETWORKS = [
   { id: "ethereum", name: "Ethereum", symbol: "ETH", fee: "~$2.50" },
@@ -69,39 +70,54 @@ function QRCodeSVG({ value, size }: { value: string; size: number }) {
 
 export default function ReceivePage() {
   const router = useRouter();
-  const { wallets, activeWalletId } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, activeWalletId, isLoaded, fetchWallets } = useWalletStore();
+
+  useEffect(() => {
+    if (!isLoaded) fetchWallets();
+  }, [isLoaded, fetchWallets]);
   const priceMap = useLivePrices();
   const wallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
+  const tokens = wallet?.tokens ?? [];
+  const walletAddress = wallet?.address ?? "";
 
-  const [selectedTokenId, setSelectedTokenId] = useState(wallet.tokens[0]?.id ?? "");
+  const [selectedTokenId, setSelectedTokenId] = useState(tokens[0]?.id ?? "");
   const [selectedNetworkId, setSelectedNetworkId] = useState(NETWORKS[0].id);
   const [showTokenPicker, setShowTokenPicker] = useState(false);
   const [showNetworkPicker, setShowNetworkPicker] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const selectedToken = wallet.tokens.find((t) => t.id === selectedTokenId);
+  const selectedToken = tokens.find((t) => t.id === selectedTokenId);
   const selectedNetwork = NETWORKS.find((n) => n.id === selectedNetworkId) ?? NETWORKS[0];
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(wallet.address);
+    navigator.clipboard.writeText(walletAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [wallet.address]);
+  }, [walletAddress]);
 
   const handleShare = useCallback(async () => {
     if (navigator.share) {
       await navigator.share({
         title: `Receive ${selectedToken?.symbol ?? "crypto"}`,
-        text: `Send ${selectedToken?.symbol ?? "crypto"} to: ${wallet.address}`,
+        text: `Send ${selectedToken?.symbol ?? "crypto"} to: ${walletAddress}`,
       });
     } else {
       handleCopy();
     }
-  }, [selectedToken, wallet.address, handleCopy]);
+  }, [selectedToken, walletAddress, handleCopy]);
+
+  if (!wallet) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-24">
-      <div className="flex items-center gap-3">
+    <div ref={animScope} className="flex flex-col gap-5 px-4 pt-6 pb-24">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -109,7 +125,7 @@ export default function ReceivePage() {
       </div>
 
       {/* Token Picker */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Asset</label>
         <button
           onClick={() => { setShowTokenPicker(!showTokenPicker); setShowNetworkPicker(false); }}
@@ -128,7 +144,7 @@ export default function ReceivePage() {
         </button>
         {showTokenPicker && (
           <div className="mt-2 flex flex-col gap-1 rounded-xl bg-card p-2">
-            {wallet.tokens.map((t) => {
+            {tokens.map((t) => {
               const tp = priceMap[t.symbol.toUpperCase()]?.price ?? t.price;
               return (
                 <button
@@ -153,7 +169,7 @@ export default function ReceivePage() {
       </div>
 
       {/* Network Picker */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">Network</label>
         <button
           onClick={() => { setShowNetworkPicker(!showNetworkPicker); setShowTokenPicker(false); }}
@@ -193,7 +209,7 @@ export default function ReceivePage() {
       </div>
 
       {/* QR Code */}
-      <div className="flex flex-col items-center gap-4 rounded-2xl bg-card p-6">
+      <div data-anim="card" className="flex flex-col items-center gap-4 rounded-2xl bg-card p-6">
         <p className="text-sm text-muted-foreground">
           Scan to send {selectedToken?.symbol ?? "crypto"} on {selectedNetwork.name}
         </p>
@@ -203,7 +219,7 @@ export default function ReceivePage() {
       </div>
 
       {/* Address */}
-      <div className="rounded-xl bg-card p-4">
+      <div data-anim="card" className="rounded-xl bg-card p-4">
         <p className="mb-2 text-sm text-muted-foreground">Your {selectedNetwork.name} Address</p>
         <p className="break-all font-mono text-sm">{wallet.address}</p>
       </div>

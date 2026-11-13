@@ -1,37 +1,94 @@
 import { create } from "zustand";
-import { Wallet, Transaction, Token } from "./types";
-import { wallets as initialWallets, transactions as initialTransactions } from "./mock-data";
+import { apiFetch, apiPost, apiPatch } from "./api-client";
+
+interface Token {
+  id: string;
+  name: string;
+  symbol: string;
+  icon: string;
+  price: number;
+  change24h: number;
+  balance: number;
+  value: number;
+  color: string;
+  isCustom?: boolean;
+  totalSupply?: number;
+  description?: string;
+}
+
+interface Wallet {
+  id: string;
+  name: string;
+  address: string;
+  totalBalance: number;
+  change24h: number;
+  tokens: Token[];
+  color: string;
+}
+
+interface Transaction {
+  id: string;
+  type: "send" | "receive" | "swap" | "create" | "sell";
+  token: string;
+  tokenSymbol: string;
+  amount: number;
+  value: number;
+  address: string;
+  date: string;
+  status: "completed" | "pending" | "failed";
+  walletId: string;
+  isInternal?: boolean;
+}
 
 interface WalletStore {
   wallets: Wallet[];
   transactions: Transaction[];
   activeWalletId: string;
+  isLoaded: boolean;
 
   getActiveWallet: () => Wallet;
   getTotalBalance: () => number;
   getTotalChange: () => number;
 
-  addWallet: (wallet: Wallet) => void;
-  addTransaction: (tx: Transaction) => void;
-  createToken: (token: Token, walletId: string) => void;
-  sendToken: (walletId: string, tokenId: string, amount: number, toAddress: string) => void;
-  swapTokens: (walletId: string, fromTokenId: string, toTokenId: string, fromAmount: number, toAmount: number) => void;
-  buyToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => void;
-  sellToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => void;
+  fetchWallets: () => Promise<void>;
+  fetchTransactions: () => Promise<void>;
+  setActiveWalletId: (id: string) => void;
 
-  approveTransaction: (txId: string) => void;
-  rejectTransaction: (txId: string) => void;
-  updateTokenPrice: (walletId: string, tokenId: string, price: number) => void;
+  sendToken: (walletId: string, tokenId: string, amount: number, toAddress: string) => Promise<void>;
+  swapTokens: (walletId: string, fromTokenId: string, toTokenId: string, fromAmount: number, toAmount: number) => Promise<void>;
+  buyToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => Promise<void>;
+  sellToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => Promise<void>;
+  createToken: (tokenData: { walletId: string; name: string; symbol: string; icon: string; color: string; totalSupply: number; description: string }) => Promise<void>;
+  addWallet: (data: { name: string; color: string }) => Promise<void>;
+
+  // Admin actions
+  approveTransaction: (txId: string) => Promise<void>;
+  rejectTransaction: (txId: string) => Promise<void>;
+  updateTokenPrice: (tokenId: string, price: number) => Promise<void>;
+  fetchAdminTransactions: (status?: string) => Promise<void>;
+  fetchAdminTokens: () => Promise<{ id: string; name: string; symbol: string; price: number; balance: number; value: number; isCustom: boolean; wallet: { name: string }; user: { firstName: string; lastName: string } }[]>;
+  fetchDashboard: () => Promise<{ stats: { pending: number; approved: number; rejected: number; totalVolume: number }; counts: { users: number; wallets: number; tokens: number; customTokens: number }; recentPending: unknown[] }>;
 }
 
+const EMPTY_WALLET: Wallet = {
+  id: "",
+  name: "Loading...",
+  address: "",
+  totalBalance: 0,
+  change24h: 0,
+  tokens: [],
+  color: "blue",
+};
+
 export const useWalletStore = create<WalletStore>((set, get) => ({
-  wallets: initialWallets,
-  transactions: initialTransactions,
-  activeWalletId: "main",
+  wallets: [],
+  transactions: [],
+  activeWalletId: "",
+  isLoaded: false,
 
   getActiveWallet: () => {
     const state = get();
-    return state.wallets.find((w) => w.id === state.activeWalletId) ?? state.wallets[0];
+    return state.wallets.find((w) => w.id === state.activeWalletId) ?? state.wallets[0] ?? EMPTY_WALLET;
   },
 
   getTotalBalance: () => get().wallets.reduce((sum, w) => sum + w.totalBalance, 0),
@@ -43,242 +100,122 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     return wallets.reduce((sum, w) => sum + (w.change24h * w.totalBalance) / total, 0);
   },
 
-  addWallet: (wallet) =>
-    set((state) => ({ wallets: [...state.wallets, wallet] })),
+  setActiveWalletId: (id) => set({ activeWalletId: id }),
 
-  addTransaction: (tx) =>
-    set((state) => ({ transactions: [tx, ...state.transactions] })),
+  fetchWallets: async () => {
+    const res = await apiFetch<Wallet[]>("/api/wallets");
+    if (res.success) {
+      const wallets = res.data.map((w) => ({
+        ...w,
+        change24h: 0,
+        tokens: w.tokens.map((t) => ({ ...t })),
+      }));
+      set((state) => ({
+        wallets,
+        activeWalletId: state.activeWalletId || wallets[0]?.id || "",
+        isLoaded: true,
+      }));
+    }
+  },
 
-  createToken: (token, walletId) =>
-    set((state) => {
-      const tx: Transaction = {
-        id: `t-${Date.now()}`,
-        type: "create",
-        token: token.name,
-        tokenSymbol: token.symbol,
-        amount: token.totalSupply ?? 0,
-        value: 0,
-        address: "Contract",
-        date: new Date().toISOString(),
-        status: "pending",
-        walletId,
-        tokenData: token,
-      };
-      return {
-        transactions: [tx, ...state.transactions],
-      };
-    }),
+  fetchTransactions: async () => {
+    const res = await apiFetch<{ transactions: Array<Transaction & { createdAt: string }> }>("/api/transactions?limit=100");
+    if (res.success) {
+      set({
+        transactions: res.data.transactions.map((tx) => ({
+          ...tx,
+          date: tx.createdAt,
+        })),
+      });
+    }
+  },
 
-  sendToken: (walletId, tokenId, amount, toAddress) =>
-    set((state) => {
-      const wallet = state.wallets.find((w) => w.id === walletId);
-      const token = wallet?.tokens.find((t) => t.id === tokenId);
-      if (!wallet || !token) return state;
+  sendToken: async (walletId, tokenId, amount, toAddress) => {
+    const res = await apiPost("/api/transactions", { type: "send", walletId, tokenId, amount, toAddress });
+    if (!res.success) throw new Error(res.error || "Send failed");
+    await get().fetchTransactions();
+  },
 
-      const tx: Transaction = {
-        id: `t-${Date.now()}`,
-        type: "send",
-        token: token.name,
-        tokenSymbol: token.symbol,
-        amount,
-        value: amount * token.price,
-        address: toAddress,
-        date: new Date().toISOString(),
-        status: "pending",
-        walletId,
-        tokenId,
-      };
+  swapTokens: async (walletId, fromTokenId, toTokenId, fromAmount, toAmount) => {
+    const res = await apiPost("/api/transactions", { type: "swap", walletId, fromTokenId, toTokenId, fromAmount, toAmount });
+    if (!res.success) throw new Error(res.error || "Swap failed");
+    await get().fetchTransactions();
+  },
 
-      return {
-        transactions: [tx, ...state.transactions],
-      };
-    }),
+  buyToken: async (walletId, tokenId, amount, fiatAmount) => {
+    const res = await apiPost("/api/transactions", { type: "buy", walletId, tokenId, amount, fiatAmount });
+    if (!res.success) throw new Error(res.error || "Buy failed");
+    await get().fetchTransactions();
+  },
 
-  swapTokens: (walletId, fromTokenId, toTokenId, fromAmount, toAmount) =>
-    set((state) => {
-      const wallet = state.wallets.find((w) => w.id === walletId);
-      const fromToken = wallet?.tokens.find((t) => t.id === fromTokenId);
-      const toToken = wallet?.tokens.find((t) => t.id === toTokenId);
-      if (!wallet || !fromToken || !toToken) return state;
+  sellToken: async (walletId, tokenId, amount, fiatAmount) => {
+    const res = await apiPost("/api/transactions", { type: "sell", walletId, tokenId, amount, fiatAmount });
+    if (!res.success) throw new Error(res.error || "Sell failed");
+    await get().fetchTransactions();
+  },
 
-      const tx: Transaction = {
-        id: `t-${Date.now()}`,
-        type: "swap",
-        token: `${fromToken.symbol} → ${toToken.symbol}`,
-        tokenSymbol: toToken.symbol,
-        amount: toAmount,
-        value: fromAmount * fromToken.price,
-        address: "DEX",
-        date: new Date().toISOString(),
-        status: "pending",
-        walletId,
-        fromTokenId,
-        toTokenId,
-        toAmount,
-      };
+  createToken: async (tokenData) => {
+    const res = await apiPost("/api/tokens", tokenData);
+    if (!res.success) throw new Error(res.error || "Token creation failed");
+    await get().fetchTransactions();
+  },
 
-      return {
-        transactions: [tx, ...state.transactions],
-      };
-    }),
+  addWallet: async (data) => {
+    const res = await apiPost("/api/wallets", data);
+    if (!res.success) throw new Error(res.error || "Wallet creation failed");
+    await get().fetchWallets();
+  },
 
-  buyToken: (walletId, tokenId, amount, fiatAmount) =>
-    set((state) => {
-      const wallet = state.wallets.find((w) => w.id === walletId);
-      const token = wallet?.tokens.find((t) => t.id === tokenId);
-      if (!wallet || !token) return state;
+  approveTransaction: async (txId) => {
+    const res = await apiPost(`/api/admin/transactions/${txId}/approve`, {});
+    if (!res.success) throw new Error(res.error || "Approve failed");
+    await Promise.all([get().fetchWallets(), get().fetchTransactions()]);
+  },
 
-      const tx: Transaction = {
-        id: `t-${Date.now()}`,
-        type: "receive",
-        token: token.name,
-        tokenSymbol: token.symbol,
-        amount,
-        value: fiatAmount,
-        address: "Purchase",
-        date: new Date().toISOString(),
-        status: "pending",
-        walletId,
-        tokenId,
-        fiatAmount,
-      };
+  rejectTransaction: async (txId) => {
+    const res = await apiPost(`/api/admin/transactions/${txId}/reject`, {});
+    if (!res.success) throw new Error(res.error || "Reject failed");
+    await get().fetchTransactions();
+  },
 
-      return {
-        transactions: [tx, ...state.transactions],
-      };
-    }),
+  updateTokenPrice: async (tokenId, price) => {
+    const res = await apiPatch(`/api/admin/tokens/${tokenId}`, { price });
+    if (!res.success) throw new Error(res.error || "Price update failed");
+    await get().fetchWallets();
+  },
 
-  sellToken: (walletId, tokenId, amount, fiatAmount) =>
-    set((state) => {
-      const wallet = state.wallets.find((w) => w.id === walletId);
-      const token = wallet?.tokens.find((t) => t.id === tokenId);
-      if (!wallet || !token) return state;
+  fetchAdminTransactions: async (status) => {
+    const url = status ? `/api/admin/transactions?status=${status}&limit=100` : "/api/admin/transactions?limit=100";
+    const res = await apiFetch<{ transactions: Array<Transaction & { createdAt: string; user?: { firstName: string; lastName: string; email: string }; wallet?: { name: string } }> }>(url);
+    if (res.success) {
+      set({
+        transactions: res.data.transactions.map((tx) => ({
+          ...tx,
+          date: tx.createdAt,
+          walletId: typeof tx.wallet === "object" ? (tx.wallet as { _id?: string })?.["_id"] || "" : (tx.walletId || ""),
+        })),
+      });
+    }
+  },
 
-      const tx: Transaction = {
-        id: `t-${Date.now()}`,
-        type: "sell",
-        token: token.name,
-        tokenSymbol: token.symbol,
-        amount,
-        value: fiatAmount,
-        address: "Sale",
-        date: new Date().toISOString(),
-        status: "pending",
-        walletId,
-        tokenId,
-        fiatAmount,
-      };
+  fetchAdminTokens: async () => {
+    const res = await apiFetch<Array<{
+      id: string; name: string; symbol: string; icon: string; price: number;
+      change24h: number; balance: number; value: number; color: string;
+      isCustom: boolean; totalSupply: number;
+      wallet: { name: string }; user: { firstName: string; lastName: string };
+    }>>("/api/admin/tokens");
+    if (res.success) return res.data;
+    return [];
+  },
 
-      return {
-        transactions: [tx, ...state.transactions],
-      };
-    }),
-
-  approveTransaction: (txId) =>
-    set((state) => {
-      const tx = state.transactions.find((t) => t.id === txId);
-      if (!tx || tx.status !== "pending") return state;
-
-      let updatedWallets = state.wallets;
-
-      if (tx.type === "send" && tx.tokenId) {
-        updatedWallets = state.wallets.map((w) =>
-          w.id === tx.walletId
-            ? {
-                ...w,
-                tokens: w.tokens.map((t) =>
-                  t.id === tx.tokenId
-                    ? { ...t, balance: t.balance - tx.amount, value: (t.balance - tx.amount) * t.price }
-                    : t
-                ),
-                totalBalance: w.totalBalance - tx.value,
-              }
-            : w
-        );
-      } else if (tx.type === "receive" && tx.tokenId) {
-        updatedWallets = state.wallets.map((w) =>
-          w.id === tx.walletId
-            ? {
-                ...w,
-                tokens: w.tokens.map((t) =>
-                  t.id === tx.tokenId
-                    ? { ...t, balance: t.balance + tx.amount, value: (t.balance + tx.amount) * t.price }
-                    : t
-                ),
-                totalBalance: w.totalBalance + (tx.fiatAmount ?? tx.value),
-              }
-            : w
-        );
-      } else if (tx.type === "swap" && tx.fromTokenId && tx.toTokenId && tx.toAmount) {
-        const wallet = state.wallets.find((w) => w.id === tx.walletId);
-        const fromToken = wallet?.tokens.find((t) => t.id === tx.fromTokenId);
-        if (fromToken) {
-          const fromAmount = tx.value / fromToken.price;
-          updatedWallets = state.wallets.map((w) =>
-            w.id === tx.walletId
-              ? {
-                  ...w,
-                  tokens: w.tokens.map((t) => {
-                    if (t.id === tx.fromTokenId) return { ...t, balance: t.balance - fromAmount, value: (t.balance - fromAmount) * t.price };
-                    if (t.id === tx.toTokenId) return { ...t, balance: t.balance + tx.toAmount!, value: (t.balance + tx.toAmount!) * t.price };
-                    return t;
-                  }),
-                }
-              : w
-          );
-        }
-      } else if (tx.type === "sell" && tx.tokenId) {
-        updatedWallets = state.wallets.map((w) =>
-          w.id === tx.walletId
-            ? {
-                ...w,
-                tokens: w.tokens.map((t) =>
-                  t.id === tx.tokenId
-                    ? { ...t, balance: t.balance - tx.amount, value: (t.balance - tx.amount) * t.price }
-                    : t
-                ),
-                totalBalance: w.totalBalance - tx.value,
-              }
-            : w
-        );
-      } else if (tx.type === "create" && tx.tokenData) {
-        updatedWallets = state.wallets.map((w) =>
-          w.id === tx.walletId
-            ? { ...w, tokens: [...w.tokens, tx.tokenData!] }
-            : w
-        );
-      }
-
-      return {
-        wallets: updatedWallets,
-        transactions: state.transactions.map((t) =>
-          t.id === txId ? { ...t, status: "completed" as const } : t
-        ),
-      };
-    }),
-
-  rejectTransaction: (txId) =>
-    set((state) => ({
-      transactions: state.transactions.map((t) =>
-        t.id === txId && t.status === "pending"
-          ? { ...t, status: "failed" as const }
-          : t
-      ),
-    })),
-
-  updateTokenPrice: (walletId, tokenId, price) =>
-    set((state) => ({
-      wallets: state.wallets.map((w) =>
-        w.id === walletId
-          ? {
-              ...w,
-              tokens: w.tokens.map((t) =>
-                t.id === tokenId
-                  ? { ...t, price, value: t.balance * price }
-                  : t
-              ),
-            }
-          : w
-      ),
-    })),
+  fetchDashboard: async () => {
+    const res = await apiFetch<{
+      stats: { pending: number; approved: number; rejected: number; totalVolume: number };
+      counts: { users: number; wallets: number; tokens: number; customTokens: number };
+      recentPending: unknown[];
+    }>("/api/admin/dashboard");
+    if (res.success) return res.data;
+    return { stats: { pending: 0, approved: 0, rejected: 0, totalVolume: 0 }, counts: { users: 0, wallets: 0, tokens: 0, customTokens: 0 }, recentPending: [] };
+  },
 }));

@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, ArrowDownLeft, Copy, Check } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
 import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatPercent, formatTokenAmount } from "@/components/format";
 import { TokenListSkeleton } from "@/components/skeleton";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { usePageTransition } from "@/hooks/use-gsap";
 import type { Token } from "@/lib/types";
 
 function enrichToken(token: Token, priceMap: Record<string, { price: number; change24h: number }>): Token {
@@ -22,7 +23,12 @@ function enrichToken(token: Token, priceMap: Record<string, { price: number; cha
 export default function WalletDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { wallets } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, isLoaded, fetchWallets } = useWalletStore();
+
+  useEffect(() => {
+    if (!isLoaded) fetchWallets();
+  }, [isLoaded, fetchWallets]);
   const priceMap = useLivePrices();
   const wallet = wallets.find((w) => w.id === id);
   const [copied, setCopied] = useState(false);
@@ -62,8 +68,8 @@ export default function WalletDetailPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-6">
-      <div className="flex items-center gap-3">
+    <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -71,6 +77,7 @@ export default function WalletDetailPage() {
       </div>
 
       <div
+        data-anim="balance"
         className="rounded-2xl p-6 text-white"
         style={{ background: `linear-gradient(135deg, ${wallet.color}, ${wallet.color}88)` }}
       >
@@ -116,6 +123,7 @@ export default function WalletDetailPage() {
               <Link
                 key={token.id}
                 href={`/token/${token.id}`}
+                data-anim="list-item"
                 className="flex items-center gap-3 rounded-xl bg-card p-4 transition-colors hover:bg-accent active:scale-[0.99]"
               >
                 <CryptoIcon symbol={token.symbol} size={44} fallbackColor={token.color} fallbackIcon={token.icon} />

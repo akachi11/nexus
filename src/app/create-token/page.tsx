@@ -5,7 +5,7 @@ import { ArrowLeft, Sparkles, Check, Coins, FileText, Settings, Rocket } from "l
 import { useState, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { Token } from "@/lib/types";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 const COLORS = [
   "#6366f1", "#ec4899", "#f59e0b", "#10b981", "#ef4444",
@@ -23,11 +23,14 @@ const steps = [
 
 export default function CreateTokenPage() {
   const router = useRouter();
-  const { wallets, createToken } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, createToken, isLoaded, fetchWallets } = useWalletStore();
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!isLoaded) fetchWallets();
     setStep(1);
     setCreated(false);
   }, []);
@@ -48,30 +51,28 @@ export default function CreateTokenPage() {
     return true;
   };
 
-  const handleCreate = () => {
-    const token: Token = {
-      id: `custom-${Date.now()}`,
-      name,
-      symbol: symbol.toUpperCase(),
-      icon,
-      price: 0,
-      change24h: 0,
-      balance: parseInt(totalSupply),
-      value: 0,
-      color,
-      isCustom: true,
-      totalSupply: parseInt(totalSupply),
-      description,
-      createdAt: new Date().toISOString(),
-    };
-    createToken(token, walletId);
-    setCreated(true);
+  const handleCreate = async () => {
+    setSubmitting(true);
+    try {
+      await createToken({
+        walletId,
+        name,
+        symbol: symbol.toUpperCase(),
+        icon,
+        color,
+        totalSupply: parseInt(totalSupply),
+        description,
+      });
+      setCreated(true);
+    } catch {
+      setSubmitting(false);
+    }
   };
 
   if (created) {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 px-4 pt-24">
-        <div className="relative">
+      <div ref={animScope} className="flex flex-col items-center justify-center gap-6 px-4 pt-24">
+        <div data-anim="result-icon" className="relative">
           <div
             className="flex h-24 w-24 items-center justify-center rounded-full text-5xl"
             style={{ backgroundColor: color + "22" }}
@@ -83,7 +84,7 @@ export default function CreateTokenPage() {
           </div>
         </div>
         <div className="text-center">
-          <h2 className="text-2xl font-bold">Request Submitted Successfully</h2>
+          <h2 data-anim="result-text" className="text-2xl font-bold">Request Submitted Successfully</h2>
           <p className="mt-2 text-muted-foreground">
             Your request to create {name} ({symbol.toUpperCase()}) with {parseInt(totalSupply).toLocaleString()} tokens is being reviewed
           </p>
@@ -124,8 +125,8 @@ export default function CreateTokenPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-6">
-      <div className="flex items-center gap-3">
+    <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6">
+      <div data-anim="header" className="flex items-center gap-3">
         <button onClick={() => (step > 1 ? setStep(step - 1) : router.back())} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -136,7 +137,7 @@ export default function CreateTokenPage() {
       </div>
 
       {/* Step Indicator */}
-      <div className="flex gap-2">
+      <div data-anim="section" className="flex gap-2">
         {steps.map((s) => (
           <div key={s.id} className="flex flex-1 flex-col items-center gap-1">
             <div

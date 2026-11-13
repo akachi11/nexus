@@ -8,6 +8,7 @@ import { useLivePrices } from "@/hooks/use-market-data";
 import { formatCurrency, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 type Step = "form" | "confirm" | "swapping" | "success" | "error";
 
@@ -15,12 +16,14 @@ const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0];
 
 export default function SwapPage() {
   const router = useRouter();
-  const { wallets, activeWalletId, swapTokens } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, activeWalletId, swapTokens, isLoaded, fetchWallets } = useWalletStore();
   const priceMap = useLivePrices();
   const wallet = wallets.find((w) => w.id === activeWalletId) ?? wallets[0];
+  const tokens = wallet?.tokens ?? [];
 
-  const [fromTokenId, setFromTokenId] = useState(wallet.tokens[0]?.id ?? "");
-  const [toTokenId, setToTokenId] = useState(wallet.tokens[1]?.id ?? wallet.tokens[0]?.id ?? "");
+  const [fromTokenId, setFromTokenId] = useState(tokens[0]?.id ?? "");
+  const [toTokenId, setToTokenId] = useState(tokens[1]?.id ?? tokens[0]?.id ?? "");
   const [fromAmount, setFromAmount] = useState("");
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
@@ -30,13 +33,14 @@ export default function SwapPage() {
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
+    if (!isLoaded) fetchWallets();
     setStep("form");
     setFromAmount("");
     setTouched(false);
   }, []);
 
-  const fromToken = wallet.tokens.find((t) => t.id === fromTokenId);
-  const toToken = wallet.tokens.find((t) => t.id === toTokenId);
+  const fromToken = tokens.find((t) => t.id === fromTokenId);
+  const toToken = tokens.find((t) => t.id === toTokenId);
 
   const fromPrice = fromToken ? (priceMap[fromToken.symbol.toUpperCase()]?.price ?? fromToken.price) : 0;
   const toPrice = toToken ? (priceMap[toToken.symbol.toUpperCase()]?.price ?? toToken.price) : 0;
@@ -77,7 +81,7 @@ export default function SwapPage() {
     setStep("swapping");
     await new Promise((r) => setTimeout(r, 2500));
     try {
-      swapTokens(wallet.id, fromTokenId, toTokenId, fromAmountNum, toAmountNum);
+      await swapTokens(wallet.id, fromTokenId, toTokenId, fromAmountNum, toAmountNum);
       setStep("success");
       setTimeout(() => router.replace("/"), 2500);
     } catch {
@@ -85,17 +89,25 @@ export default function SwapPage() {
     }
   };
 
+  if (!wallet) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (step === "success") {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
+      <div ref={animScope} className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
+        <div data-anim="result-icon" className="flex h-20 w-20 items-center justify-center rounded-full bg-[oklch(0.72_0.19_155/0.15)]">
           <CheckCircle2 className="h-10 w-10 text-[oklch(0.72_0.19_155)]" />
         </div>
-        <h2 className="text-xl font-bold">Request Submitted Successfully</h2>
-        <p className="text-center text-muted-foreground">
+        <h2 data-anim="result-text" className="text-xl font-bold">Request Submitted Successfully</h2>
+        <p data-anim="result-text" className="text-center text-muted-foreground">
           Your request to swap {fromAmount} {fromToken?.symbol} for {formatTokenAmount(toAmountNum)} {toToken?.symbol} is being reviewed
         </p>
-        <p className="text-sm text-muted-foreground">Redirecting to home...</p>
+        <p data-anim="result-text" className="text-sm text-muted-foreground">Redirecting to home...</p>
       </div>
     );
   }
@@ -207,8 +219,8 @@ export default function SwapPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-24">
-      <div className="flex items-center justify-between">
+    <div ref={animScope} className="flex flex-col gap-5 px-4 pt-6 pb-24">
+      <div data-anim="header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
             <ArrowLeft className="h-5 w-5" />
@@ -245,7 +257,7 @@ export default function SwapPage() {
       )}
 
       {/* From Token */}
-      <div>
+      <div data-anim="form">
         <div className="mb-2 flex items-center justify-between">
           <label className="text-sm text-muted-foreground">You Pay</label>
           {fromToken && (
@@ -275,7 +287,7 @@ export default function SwapPage() {
           </button>
           {showFromPicker && (
             <div className="mb-3 flex flex-col gap-1 rounded-lg bg-secondary p-2">
-              {wallet.tokens.filter((t) => t.id !== toTokenId).map((t) => {
+              {tokens.filter((t) => t.id !== toTokenId).map((t) => {
                 const tp = priceMap[t.symbol.toUpperCase()]?.price ?? t.price;
                 return (
                   <button
@@ -326,7 +338,7 @@ export default function SwapPage() {
       </div>
 
       {/* To Token */}
-      <div>
+      <div data-anim="form">
         <label className="mb-2 block text-sm text-muted-foreground">You Receive</label>
         <div className="rounded-xl bg-card p-4">
           <button
@@ -346,7 +358,7 @@ export default function SwapPage() {
           </button>
           {showToPicker && (
             <div className="mb-3 flex flex-col gap-1 rounded-lg bg-secondary p-2">
-              {wallet.tokens.filter((t) => t.id !== fromTokenId).map((t) => {
+              {tokens.filter((t) => t.id !== fromTokenId).map((t) => {
                 const tp = priceMap[t.symbol.toUpperCase()]?.price ?? t.price;
                 return (
                   <button

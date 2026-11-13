@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
 import { formatCurrency, formatDate, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 type TxFilter = "all" | "send" | "receive" | "swap" | "create" | "sell";
 
@@ -18,10 +19,14 @@ const filters: { id: TxFilter; label: string }[] = [
 ];
 
 export default function HistoryPage() {
-  const { transactions, wallets } = useWalletStore();
+  const animScope = usePageTransition();
+  const { transactions, wallets, isLoaded, fetchWallets, fetchTransactions } = useWalletStore();
   const [filter, setFilter] = useState<TxFilter>("all");
   const [now, setNow] = useState<Date | undefined>(undefined);
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    setNow(new Date());
+    if (!isLoaded) { fetchWallets(); fetchTransactions(); }
+  }, []);
 
   const filtered = useMemo(() => {
     if (filter === "all") return transactions;
@@ -39,8 +44,8 @@ export default function HistoryPage() {
   }, [filtered]);
 
   return (
-    <div className="flex flex-col gap-4 px-4 pt-6">
-      <div className="flex items-center justify-between">
+    <div ref={animScope} className="flex flex-col gap-4 px-4 pt-6">
+      <div data-anim="header" className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Activity</h1>
         <button className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
           <Filter className="h-5 w-5" />
@@ -48,7 +53,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div data-anim="section" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {filters.map(({ id, label }) => (
           <button
             key={id}
@@ -73,7 +78,7 @@ export default function HistoryPage() {
             {txs.map((tx) => {
               const wallet = wallets.find((w) => w.id === tx.walletId);
               return (
-                <div key={tx.id} className="flex items-center gap-3 rounded-xl bg-card p-4">
+                <div key={tx.id} data-anim="list-item" className="flex items-center gap-3 rounded-xl bg-card p-4">
                   <div
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full",

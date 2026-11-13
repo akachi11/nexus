@@ -1,53 +1,89 @@
 "use client";
 
-import { Coins, Save, X, Pencil } from "lucide-react";
-import { useState } from "react";
+import { Coins, Save, X, Pencil, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
+import { useAuth } from "@/components/auth-provider";
+import { useRouter } from "next/navigation";
 import { formatCurrency, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/crypto-icons";
 
-interface EditingState {
-  walletId: string;
-  tokenId: string;
-  price: string;
+interface AdminToken {
+  id: string;
   name: string;
   symbol: string;
+  icon: string;
+  price: number;
+  balance: number;
+  value: number;
+  color: string;
+  isCustom: boolean;
+  totalSupply?: number;
+  wallet: { name: string };
+  user: { firstName: string; lastName: string };
+}
+
+interface EditingState {
+  tokenId: string;
+  price: string;
 }
 
 export default function AdminTokensPage() {
-  const { wallets, updateTokenPrice } = useWalletStore();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { updateTokenPrice, fetchAdminTokens } = useWalletStore();
+  const [tokens, setTokens] = useState<AdminToken[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "custom">("all");
 
-  const allTokens = wallets.flatMap((w) =>
-    w.tokens.map((t) => ({ ...t, walletId: w.id, walletName: w.name }))
-  );
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.replace("/");
+      return;
+    }
+    loadTokens();
+  }, [user]);
+
+  const loadTokens = async () => {
+    const data = await fetchAdminTokens();
+    setTokens(data as AdminToken[]);
+    setLoading(false);
+  };
 
   const filtered = filter === "custom"
-    ? allTokens.filter((t) => t.isCustom)
-    : allTokens;
+    ? tokens.filter((t) => t.isCustom)
+    : tokens;
 
-  const handleEdit = (walletId: string, token: typeof allTokens[0]) => {
+  const handleEdit = (token: AdminToken) => {
     setEditing({
-      walletId,
       tokenId: token.id,
       price: token.price.toString(),
-      name: token.name,
-      symbol: token.symbol,
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editing) return;
     const price = parseFloat(editing.price);
     if (isNaN(price) || price < 0) return;
-    updateTokenPrice(editing.walletId, editing.tokenId, price);
-    setSavedId(editing.tokenId);
-    setEditing(null);
-    setTimeout(() => setSavedId(null), 2000);
+    try {
+      await updateTokenPrice(editing.tokenId, price);
+      setSavedId(editing.tokenId);
+      setEditing(null);
+      setTimeout(() => setSavedId(null), 2000);
+      loadTokens();
+    } catch { /* error thrown by store */ }
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-6">
@@ -69,7 +105,7 @@ export default function AdminTokensPage() {
                 : "bg-card text-muted-foreground hover:text-foreground"
             )}
           >
-            {f === "all" ? `All (${allTokens.length})` : `Custom (${allTokens.filter((t) => t.isCustom).length})`}
+            {f === "all" ? `All (${tokens.length})` : `Custom (${tokens.filter((t) => t.isCustom).length})`}
           </button>
         ))}
       </div>
@@ -85,12 +121,12 @@ export default function AdminTokensPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((token) => {
-            const isEditing = editing?.tokenId === token.id && editing?.walletId === token.walletId;
+            const isEditing = editing?.tokenId === token.id;
             const justSaved = savedId === token.id;
 
             return (
               <div
-                key={`${token.walletId}-${token.id}`}
+                key={token.id}
                 className={cn(
                   "rounded-xl bg-card p-4 transition-all",
                   justSaved && "ring-2 ring-[oklch(0.72_0.19_155)]"
@@ -106,7 +142,9 @@ export default function AdminTokensPage() {
                         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Custom</span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{token.walletName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {token.wallet?.name} · {token.user?.firstName} {token.user?.lastName}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{formatCurrency(token.price)}</p>
@@ -127,16 +165,10 @@ export default function AdminTokensPage() {
                       <span className="text-muted-foreground">Value:</span>
                       <span className="ml-1 font-medium">{formatCurrency(token.value)}</span>
                     </div>
-                    {token.totalSupply && (
+                    {token.totalSupply != null && (
                       <div>
                         <span className="text-muted-foreground">Supply:</span>
                         <span className="ml-1 font-medium">{token.totalSupply.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {token.createdAt && (
-                      <div>
-                        <span className="text-muted-foreground">Created:</span>
-                        <span className="ml-1 font-medium">{new Date(token.createdAt).toLocaleDateString()}</span>
                       </div>
                     )}
                   </div>
@@ -175,7 +207,7 @@ export default function AdminTokensPage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleEdit(token.walletId, token)}
+                    onClick={() => handleEdit(token)}
                     className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-secondary py-2.5 text-sm font-medium transition-colors hover:bg-accent active:scale-[0.98]"
                   >
                     <Pencil className="h-4 w-4" />

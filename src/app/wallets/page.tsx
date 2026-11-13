@@ -2,16 +2,23 @@
 
 import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
+import { useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
 import { formatCurrency, formatPercent } from "@/components/format";
 import { cn } from "@/lib/utils";
+import { usePageTransition } from "@/hooks/use-gsap";
 
 export default function WalletsPage() {
-  const { wallets, getTotalBalance } = useWalletStore();
+  const animScope = usePageTransition();
+  const { wallets, getTotalBalance, isLoaded, fetchWallets } = useWalletStore();
+
+  useEffect(() => {
+    if (!isLoaded) fetchWallets();
+  }, [isLoaded, fetchWallets]);
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-6">
-      <div className="flex items-center justify-between">
+    <div ref={animScope} className="flex flex-col gap-6 px-4 pt-6">
+      <div data-anim="header" className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Wallets</h1>
         <Link
           href="/create-wallet"
@@ -22,7 +29,7 @@ export default function WalletsPage() {
         </Link>
       </div>
 
-      <div className="rounded-2xl bg-card p-4">
+      <div data-anim="balance" className="rounded-2xl bg-card p-4">
         <p className="text-sm text-muted-foreground">Portfolio Value</p>
         <p className="text-2xl font-bold">{formatCurrency(getTotalBalance())}</p>
       </div>
@@ -32,6 +39,7 @@ export default function WalletsPage() {
           <Link
             key={wallet.id}
             href={`/wallet/${wallet.id}`}
+            data-anim="list-item"
             className="flex items-center gap-4 rounded-2xl bg-card p-4 transition-colors active:bg-accent"
           >
             <div

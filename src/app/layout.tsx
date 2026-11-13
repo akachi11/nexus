@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/auth-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
 
@@ -20,8 +21,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NexusWallet",
-  description: "Your gateway to crypto",
+  title: "Numirelics",
+  description: "Preserving History. Connecting Collectors. Redefining Ownership.",
 };
 
 export const viewport: Viewport = {
@@ -39,10 +40,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
-        <main className="mx-auto max-w-lg pb-20">
-          <Suspense>{children}</Suspense>
-        </main>
-        <Suspense><BottomNav /></Suspense>
+        <AuthProvider>
+          <main className="mx-auto max-w-lg pb-20">
+            <Suspense>{children}</Suspense>
+          </main>
+          <Suspense><BottomNav /></Suspense>
+        </AuthProvider>
       </body>
     </html>
   );

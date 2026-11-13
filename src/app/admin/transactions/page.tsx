@@ -1,8 +1,10 @@
 "use client";
 
-import { CheckCircle2, XCircle, Clock, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Plus, TrendingDown, Send } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Plus, TrendingDown, Send, Loader2 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useWalletStore } from "@/lib/store";
+import { useAuth } from "@/components/auth-provider";
+import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate, formatTokenAmount } from "@/components/format";
 import { cn } from "@/lib/utils";
 
@@ -16,29 +18,60 @@ const statusFilters: { id: StatusFilter; label: string }[] = [
 ];
 
 export default function AdminTransactionsPage() {
-  const { transactions, wallets, approveTransaction, rejectTransaction } = useWalletStore();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { transactions, approveTransaction, rejectTransaction, fetchAdminTransactions } = useWalletStore();
   const [filter, setFilter] = useState<StatusFilter>("pending");
   const [now, setNow] = useState<Date | undefined>(undefined);
   const [actionedId, setActionedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.replace("/");
+      return;
+    }
+    setNow(new Date());
+    fetchAdminTransactions().then(() => setLoading(false));
+  }, [user]);
+
+  const handleFilterChange = (f: StatusFilter) => {
+    setFilter(f);
+    setLoading(true);
+    const status = f === "all" ? undefined : f;
+    fetchAdminTransactions(status).then(() => setLoading(false));
+  };
 
   const filtered = useMemo(() => {
     if (filter === "all") return transactions;
     return transactions.filter((tx) => tx.status === filter);
   }, [transactions, filter]);
 
-  const handleApprove = (txId: string) => {
-    approveTransaction(txId);
-    setActionedId(txId);
-    setTimeout(() => setActionedId(null), 2000);
+  const handleApprove = async (txId: string) => {
+    try {
+      await approveTransaction(txId);
+      setActionedId(txId);
+      setTimeout(() => setActionedId(null), 2000);
+      fetchAdminTransactions(filter === "all" ? undefined : filter);
+    } catch { /* error is thrown by store */ }
   };
 
-  const handleReject = (txId: string) => {
-    rejectTransaction(txId);
-    setActionedId(txId);
-    setTimeout(() => setActionedId(null), 2000);
+  const handleReject = async (txId: string) => {
+    try {
+      await rejectTransaction(txId);
+      setActionedId(txId);
+      setTimeout(() => setActionedId(null), 2000);
+      fetchAdminTransactions(filter === "all" ? undefined : filter);
+    } catch { /* error is thrown by store */ }
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-6">
@@ -52,7 +85,7 @@ export default function AdminTransactionsPage() {
         {statusFilters.map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => setFilter(id)}
+            onClick={() => handleFilterChange(id)}
             className={cn(
               "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors",
               filter === id
@@ -61,11 +94,6 @@ export default function AdminTransactionsPage() {
             )}
           >
             {label}
-            {id === "pending" && (
-              <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-xs">
-                {transactions.filter((t) => t.status === "pending").length}
-              </span>
-            )}
           </button>
         ))}
       </div>
@@ -80,7 +108,6 @@ export default function AdminTransactionsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((tx) => {
-            const wallet = wallets.find((w) => w.id === tx.walletId);
             const justActioned = actionedId === tx.id;
 
             return (
@@ -124,7 +151,7 @@ export default function AdminTransactionsPage() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {wallet?.name} · {now ? formatDate(tx.date, now) : ""}
+                      {now ? formatDate(tx.date, now) : ""}
                     </p>
                   </div>
                   <div className="text-right">
