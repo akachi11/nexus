@@ -7,6 +7,9 @@ import { Eye, EyeOff, Loader2, Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { usePageTransition } from "@/hooks/use-gsap";
 import { cn } from "@/lib/utils";
+import { Shield } from "lucide-react";
+
+const IS_ADMIN_MODE = process.env.NEXT_PUBLIC_APP_MODE === "admin";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +28,7 @@ export default function LoginPage() {
 
     const result = await login(email, password);
     if (result.success) {
-      router.replace("/");
+      router.replace(IS_ADMIN_MODE ? "/admin" : "/");
     } else {
       setError(result.error || "Invalid credentials");
     }
@@ -36,11 +39,11 @@ export default function LoginPage() {
     <div ref={animScope} className="flex min-h-screen flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div data-anim="header" className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
-            <Wallet className="h-8 w-8 text-white" />
+          <div className={cn("flex h-16 w-16 items-center justify-center rounded-2xl", IS_ADMIN_MODE ? "bg-orange-500/15" : "gradient-primary")}>
+            {IS_ADMIN_MODE ? <Shield className="h-8 w-8 text-orange-500" /> : <Wallet className="h-8 w-8 text-white" />}
           </div>
-          <h1 className="text-2xl font-bold">Welcome Back</h1>
-          <p className="text-sm text-muted-foreground">Sign in to Numirelics</p>
+          <h1 className="text-2xl font-bold">{IS_ADMIN_MODE ? "Admin Portal" : "Welcome Back"}</h1>
+          <p className="text-sm text-muted-foreground">{IS_ADMIN_MODE ? "Numirelics Management Console" : "Sign in to Numirelics"}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -104,12 +107,14 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-primary">
-            Create one
-          </Link>
-        </p>
+        {!IS_ADMIN_MODE && (
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="font-medium text-primary">
+              Create one
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

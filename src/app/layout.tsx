@@ -33,6 +33,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+const isAdminMode = process.env.NEXT_PUBLIC_APP_MODE === "admin";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -41,10 +43,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full bg-background text-foreground">
         <AuthProvider>
-          <main className="mx-auto max-w-lg pb-20">
-            <Suspense>{children}</Suspense>
-          </main>
-          <Suspense><BottomNav /></Suspense>
+          {isAdminMode ? (
+            <main>
+              <Suspense>{children}</Suspense>
+            </main>
+          ) : (
+            <>
+              <main className="mx-auto max-w-lg pb-20">
+                <Suspense>{children}</Suspense>
+              </main>
+              <Suspense><BottomNav /></Suspense>
+            </>
+          )}
         </AuthProvider>
       </body>
     </html>

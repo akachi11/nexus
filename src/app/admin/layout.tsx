@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, Coins, ArrowLeft } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, ArrowLeftRight, Coins, ArrowLeft, Users, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
+
+const IS_ADMIN_MODE = process.env.NEXT_PUBLIC_APP_MODE === "admin";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -13,22 +16,35 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className={cn("flex min-h-screen flex-col", IS_ADMIN_MODE && "mx-auto max-w-4xl")}>
       {/* Admin Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 py-3">
-          <Link href="/" className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          {!IS_ADMIN_MODE && (
+            <Link href="/" className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
           <div className="flex-1">
             <h1 className="text-lg font-bold">Admin Panel</h1>
             <p className="text-xs text-muted-foreground">Numirelics Management</p>
           </div>
-          <div className="flex h-8 items-center rounded-full bg-primary/10 px-3">
-            <span className="text-xs font-medium text-primary">Admin</span>
-          </div>
+          {IS_ADMIN_MODE ? (
+            <button
+              onClick={() => logout()}
+              className="flex h-8 items-center gap-1.5 rounded-full bg-destructive/10 px-3 transition-colors hover:bg-destructive/20"
+            >
+              <LogOut className="h-3.5 w-3.5 text-destructive" />
+              <span className="text-xs font-medium text-destructive">Logout</span>
+            </button>
+          ) : (
+            <div className="flex h-8 items-center rounded-full bg-primary/10 px-3">
+              <span className="text-xs font-medium text-primary">Admin</span>
+            </div>
+          )}
         </div>
 
         {/* Nav Tabs */}

@@ -22,7 +22,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const PUBLIC_PATHS = ["/", "/login", "/register"];
+const IS_ADMIN_MODE = process.env.NEXT_PUBLIC_APP_MODE === "admin";
+const PUBLIC_PATHS = IS_ADMIN_MODE ? ["/login", "/admin"] : ["/", "/login", "/register"];
+const HOME_PATH = IS_ADMIN_MODE ? "/admin" : "/";
+const LOGIN_PATH = "/login";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -35,13 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await apiFetch<{ user: AuthUser }>("/api/auth/me");
         if (res.success) {
+          if (IS_ADMIN_MODE && res.data.user.role !== "admin") {
+            router.replace(LOGIN_PATH);
+            return;
+          }
           setUser(res.data.user);
         } else if (!PUBLIC_PATHS.includes(pathname)) {
-          router.replace("/login");
+          router.replace(LOGIN_PATH);
         }
       } catch {
         if (!PUBLIC_PATHS.includes(pathname)) {
-          router.replace("/login");
+          router.replace(LOGIN_PATH);
         }
       } finally {
         setIsLoading(false);
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !user && !PUBLIC_PATHS.includes(pathname)) {
-      router.replace("/login");
+      router.replace(LOGIN_PATH);
     }
   }, [pathname, user, isLoading, router]);
 
@@ -80,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiPost("/api/auth/logout", {});
     setAccessToken(null);
     setUser(null);
-    router.replace("/");
+    router.replace(IS_ADMIN_MODE ? LOGIN_PATH : "/");
   }, [router]);
 
   if (isLoading) {
