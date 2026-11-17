@@ -229,6 +229,12 @@ export function LandingPage() {
 
         {/* Content */}
         <div className="relative mx-auto flex max-w-md flex-col items-center text-center">
+          <h2 data-hero-text className="mb-5 font-[var(--font-montserrat)] text-[2.75rem] font-black uppercase tracking-wider sm:text-5xl" style={{ fontFamily: "var(--font-montserrat)" }}>
+            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 bg-clip-text text-transparent drop-shadow-lg">
+              NUMIRELICS
+            </span>
+          </h2>
+
           <div data-hero-text className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-medium text-primary backdrop-blur-sm">
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-primary" /></span>
             Now in Public Beta
@@ -435,9 +441,13 @@ export function LandingPage() {
       </section>
 
       {/* ── Footer ─────────────────────────────────── */}
-      <footer className="border-t border-border/50 bg-card/20 px-5 py-8">
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-3 text-center">
-          <p className="text-sm font-semibold">Numirelics</p>
+      <footer className="border-t border-border/50 bg-card/20 px-5 py-10">
+        <div className="mx-auto flex max-w-lg flex-col items-center gap-4 text-center">
+          <p className="text-2xl font-black uppercase tracking-wider" style={{ fontFamily: "var(--font-montserrat)" }}>
+            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 bg-clip-text text-transparent">
+              NUMIRELICS
+            </span>
+          </p>
           <p className="text-xs text-muted-foreground">
             Preserving History. Connecting Collectors. Redefining Ownership.
           </p>

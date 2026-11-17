@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono, Montserrat } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
@@ -18,6 +18,12 @@ const spaceGrotesk = Space_Grotesk({
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+});
+
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -39,7 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} ${montserrat.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
         <AuthProvider>
