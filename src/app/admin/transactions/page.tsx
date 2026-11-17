@@ -27,8 +27,9 @@ export default function AdminTransactionsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.replace("/");
+    if (!user) return;
+    if (user.role !== "admin") {
+      router.replace(process.env.NEXT_PUBLIC_APP_MODE === "admin" ? "/login" : "/");
       return;
     }
     setNow(new Date());

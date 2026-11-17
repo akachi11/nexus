@@ -23,9 +23,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const IS_ADMIN_MODE = process.env.NEXT_PUBLIC_APP_MODE === "admin";
-const PUBLIC_PATHS = IS_ADMIN_MODE ? ["/login", "/admin"] : ["/", "/login", "/register"];
+const PUBLIC_PATHS = IS_ADMIN_MODE ? ["/login"] : ["/", "/login", "/register"];
 const HOME_PATH = IS_ADMIN_MODE ? "/admin" : "/";
 const LOGIN_PATH = "/login";
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p);
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -43,11 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
           setUser(res.data.user);
-        } else if (!PUBLIC_PATHS.includes(pathname)) {
+        } else if (!isPublicPath(pathname)) {
           router.replace(LOGIN_PATH);
         }
       } catch {
-        if (!PUBLIC_PATHS.includes(pathname)) {
+        if (!isPublicPath(pathname)) {
           router.replace(LOGIN_PATH);
         }
       } finally {
@@ -58,8 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && !user && !PUBLIC_PATHS.includes(pathname)) {
+    if (isLoading) return;
+    if (!user && !isPublicPath(pathname)) {
       router.replace(LOGIN_PATH);
+    }
+    if (user && (pathname === "/login" || pathname === "/register")) {
+      router.replace(HOME_PATH);
     }
   }, [pathname, user, isLoading, router]);
 

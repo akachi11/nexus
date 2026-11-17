@@ -40,8 +40,9 @@ export default function AdminTokensPage() {
   const [filter, setFilter] = useState<"all" | "custom">("all");
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.replace("/");
+    if (!user) return;
+    if (user.role !== "admin") {
+      router.replace(process.env.NEXT_PUBLIC_APP_MODE === "admin" ? "/login" : "/");
       return;
     }
     loadTokens();

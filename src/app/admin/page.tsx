@@ -19,7 +19,8 @@ export default function AdminDashboard() {
   } | null>(null);
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
+    if (!user) return;
+    if (user.role !== "admin") {
       router.replace(process.env.NEXT_PUBLIC_APP_MODE === "admin" ? "/login" : "/");
       return;
     }
