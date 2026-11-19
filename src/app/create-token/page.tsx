@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Check, Coins, FileText, Settings, Rocket } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Sparkles, Check, Coins, FileText, Settings, Rocket, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { usePageTransition } from "@/hooks/use-gsap";
@@ -21,6 +21,10 @@ const steps = [
   { id: 4, label: "Launch", icon: Rocket },
 ];
 
+function calculateMintingFee(totalSupply: number): number {
+  return Math.max(20, totalSupply * 0.0001);
+}
+
 export default function CreateTokenPage() {
   const router = useRouter();
   const animScope = usePageTransition();
@@ -28,6 +32,7 @@ export default function CreateTokenPage() {
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isLoaded) fetchWallets();
@@ -43,16 +48,44 @@ export default function CreateTokenPage() {
   const [totalSupply, setTotalSupply] = useState("1000000");
   const [decimals, setDecimals] = useState("18");
   const [walletId, setWalletId] = useState(wallets[0]?.id ?? "main");
+  const [paymentTokenId, setPaymentTokenId] = useState("");
+
+  useEffect(() => {
+    if (wallets.length > 0 && !wallets.find((w) => w.id === walletId)) {
+      setWalletId(wallets[0].id);
+    }
+  }, [wallets, walletId]);
+
+  const selectedWallet = wallets.find((w) => w.id === walletId);
+  const payableTokens = useMemo(
+    () => (selectedWallet?.tokens ?? []).filter((t) => t.price > 0 && !t.isCustom),
+    [selectedWallet]
+  );
+
+  useEffect(() => {
+    if (payableTokens.length > 0 && !payableTokens.find((t) => t.id === paymentTokenId)) {
+      setPaymentTokenId(payableTokens[0].id);
+    }
+  }, [payableTokens, paymentTokenId]);
+
+  const supply = parseInt(totalSupply) || 0;
+  const feeUsd = calculateMintingFee(supply);
+  const selectedPaymentToken = payableTokens.find((t) => t.id === paymentTokenId);
+  const feeAmount = selectedPaymentToken && selectedPaymentToken.price > 0 ? feeUsd / selectedPaymentToken.price : 0;
+  const hasSufficientBalance = selectedPaymentToken ? selectedPaymentToken.balance >= feeAmount : false;
 
   const canNext = () => {
     if (step === 1) return name.length >= 2 && symbol.length >= 2 && symbol.length <= 6;
     if (step === 2) return description.length >= 10;
-    if (step === 3) return parseInt(totalSupply) > 0;
+    if (step === 3) return supply > 0 && !!paymentTokenId && hasSufficientBalance;
     return true;
   };
 
+  const [feeResult, setFeeResult] = useState<{ usd: number; amount: number; symbol: string } | null>(null);
+
   const handleCreate = async () => {
     setSubmitting(true);
+    setError("");
     try {
       await createToken({
         walletId,
@@ -60,11 +93,14 @@ export default function CreateTokenPage() {
         symbol: symbol.toUpperCase(),
         icon,
         color,
-        totalSupply: parseInt(totalSupply),
+        totalSupply: supply,
         description,
+        paymentTokenId,
       });
+      setFeeResult({ usd: feeUsd, amount: feeAmount, symbol: selectedPaymentToken?.symbol ?? "" });
       setCreated(true);
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Token creation failed");
       setSubmitting(false);
     }
   };
@@ -86,7 +122,7 @@ export default function CreateTokenPage() {
         <div className="text-center">
           <h2 data-anim="result-text" className="text-2xl font-bold">Request Submitted Successfully</h2>
           <p className="mt-2 text-muted-foreground">
-            Your request to create {name} ({symbol.toUpperCase()}) with {parseInt(totalSupply).toLocaleString()} tokens is being reviewed
+            Your request to create {name} ({symbol.toUpperCase()}) with {supply.toLocaleString()} tokens is being reviewed
           </p>
         </div>
         <div className="w-full rounded-xl bg-card p-4">
@@ -100,19 +136,32 @@ export default function CreateTokenPage() {
           </div>
           <div className="flex justify-between py-1 text-sm">
             <span className="text-muted-foreground">Supply</span>
-            <span className="font-medium">{parseInt(totalSupply).toLocaleString()}</span>
+            <span className="font-medium">{supply.toLocaleString()}</span>
           </div>
           <div className="flex justify-between py-1 text-sm">
             <span className="text-muted-foreground">Decimals</span>
             <span className="font-medium">{decimals}</span>
           </div>
+          {feeResult && (
+            <>
+              <div className="my-2 border-t border-border" />
+              <div className="flex justify-between py-1 text-sm">
+                <span className="text-muted-foreground">Minting Fee</span>
+                <span className="font-medium">${feeResult.usd.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-1 text-sm">
+                <span className="text-muted-foreground">Paid With</span>
+                <span className="font-medium">{feeResult.amount.toFixed(6)} {feeResult.symbol}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between py-1 text-sm">
             <span className="text-muted-foreground">Status</span>
-            <span className="font-medium text-[oklch(0.72_0.19_155)]">Active</span>
+            <span className="font-medium text-[oklch(0.75_0.15_65)]">Pending Review</span>
           </div>
         </div>
         <p className="text-center text-xs text-muted-foreground">
-          When web3 integration goes live, this token spec will be deployed as a smart contract on-chain.
+          The minting fee has been deducted from your balance. If your request is rejected, the fee will be refunded automatically.
         </p>
         <button
           onClick={() => router.replace("/")}
@@ -299,6 +348,76 @@ export default function CreateTokenPage() {
               ))}
             </div>
           </div>
+
+          {/* Minting Fee Section */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium">Minting Fee</p>
+              <p className="text-lg font-bold">${feeUsd.toFixed(2)}</p>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Fee = max($20, supply × 0.0001). This fee is burned on approval or refunded on rejection.
+            </p>
+
+            <label className="mb-2 block text-sm font-medium">Pay With</label>
+            {payableTokens.length === 0 ? (
+              <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>No tokens with a market price in this wallet. Buy some crypto first.</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {payableTokens.map((t) => {
+                  const tokenFee = t.price > 0 ? feeUsd / t.price : 0;
+                  const enough = t.balance >= tokenFee;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setPaymentTokenId(t.id)}
+                      className={cn(
+                        "flex items-center justify-between rounded-xl p-3 text-left transition-colors",
+                        paymentTokenId === t.id
+                          ? "bg-primary/15 ring-1 ring-primary"
+                          : "bg-background hover:bg-accent",
+                        !enough && "opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold"
+                          style={{ backgroundColor: (t.color || "#6366f1") + "22", color: t.color || "#6366f1" }}
+                        >
+                          {t.symbol.slice(0, 3)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{t.symbol}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Balance: {t.balance.toFixed(6)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{tokenFee.toFixed(6)}</p>
+                        {!enough && (
+                          <p className="text-xs text-destructive">Insufficient</p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedPaymentToken && !hasSufficientBalance && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>
+                  Need {feeAmount.toFixed(6)} {selectedPaymentToken.symbol} but you only have{" "}
+                  {selectedPaymentToken.balance.toFixed(6)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -323,9 +442,9 @@ export default function CreateTokenPage() {
               {[
                 ["Name", name],
                 ["Symbol", symbol.toUpperCase()],
-                ["Total Supply", parseInt(totalSupply).toLocaleString()],
+                ["Total Supply", supply.toLocaleString()],
                 ["Decimals", decimals],
-                ["Wallet", wallets.find((w) => w.id === walletId)?.name ?? ""],
+                ["Wallet", selectedWallet?.name ?? ""],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{label}</span>
@@ -337,11 +456,33 @@ export default function CreateTokenPage() {
           <div className="rounded-xl bg-card p-4">
             <p className="text-sm">{description}</p>
           </div>
-          <div className="rounded-xl border border-[oklch(0.8_0.15_85/0.3)] bg-[oklch(0.8_0.15_85/0.08)] p-4">
-            <p className="text-sm text-[oklch(0.8_0.15_85)]">
-              <strong>Web2 MVP:</strong> This token will be created locally in your wallet. When web3 integration is enabled, it will be deployed as a smart contract (ERC-20 compatible) on your chosen blockchain.
+
+          {/* Fee Summary */}
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <p className="mb-2 text-sm font-medium">Minting Fee</p>
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Fee (USD)</span>
+                <span className="font-bold">${feeUsd.toFixed(2)}</span>
+              </div>
+              {selectedPaymentToken && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Pay with {selectedPaymentToken.symbol}</span>
+                  <span className="font-medium">{feeAmount.toFixed(6)} {selectedPaymentToken.symbol}</span>
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Deducted immediately. Refunded if your request is rejected.
             </p>
           </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -363,10 +504,14 @@ export default function CreateTokenPage() {
         ) : (
           <button
             onClick={handleCreate}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl gradient-primary py-4 font-semibold text-white active:scale-[0.98]"
+            disabled={submitting}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-2xl gradient-primary py-4 font-semibold text-white active:scale-[0.98]",
+              submitting && "opacity-70"
+            )}
           >
             <Sparkles className="h-5 w-5" />
-            Create Token
+            {submitting ? "Submitting..." : "Create Token"}
           </button>
         )}
       </div>

@@ -58,7 +58,7 @@ interface WalletStore {
   swapTokens: (walletId: string, fromTokenId: string, toTokenId: string, fromAmount: number, toAmount: number) => Promise<void>;
   buyToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => Promise<void>;
   sellToken: (walletId: string, tokenId: string, amount: number, fiatAmount: number) => Promise<void>;
-  createToken: (tokenData: { walletId: string; name: string; symbol: string; icon: string; color: string; totalSupply: number; description: string }) => Promise<void>;
+  createToken: (tokenData: { walletId: string; name: string; symbol: string; icon: string; color: string; totalSupply: number; description: string; paymentTokenId: string }) => Promise<void>;
   addWallet: (data: { name: string; color: string }) => Promise<void>;
 
   // Admin actions
@@ -157,7 +157,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   createToken: async (tokenData) => {
     const res = await apiPost("/api/tokens", tokenData);
     if (!res.success) throw new Error(res.error || "Token creation failed");
-    await get().fetchTransactions();
+    await Promise.all([get().fetchWallets(), get().fetchTransactions()]);
   },
 
   addWallet: async (data) => {

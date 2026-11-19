@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/middleware/auth";
 import { connectDB } from "@/lib/db";
-import { Transaction } from "@/lib/models";
+import { Token, Transaction } from "@/lib/models";
 import { successResponse, errorResponse, handleApiError, applyRateLimit } from "@/lib/api-utils";
 
 export async function POST(
@@ -19,6 +19,18 @@ export async function POST(
     const tx = await Transaction.findById(id);
     if (!tx) return errorResponse("Transaction not found", 404);
     if (tx.status !== "pending") return errorResponse("Transaction is not pending", 400);
+
+    if (tx.type === "create" && tx.tokenData) {
+      const data = tx.tokenData as Record<string, unknown>;
+      const fee = data.fee as { tokenId: string; amount: number } | undefined;
+      if (fee) {
+        const paymentToken = await Token.findById(fee.tokenId);
+        if (paymentToken) {
+          paymentToken.balance += fee.amount;
+          await paymentToken.save();
+        }
+      }
+    }
 
     tx.status = "failed";
     tx.reviewedBy = admin.userId as unknown as typeof tx.reviewedBy;
