@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/admin/tokens", label: "Tokens", icon: Coins },
+  { href: "/admin/users", label: "Users", icon: Users },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -50,7 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Nav Tabs */}
         <div className="flex gap-1 px-4 pb-2">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href;
+            const isActive = href === "/admin" ? pathname === href : pathname.startsWith(href);
             return (
               <Link
                 key={href}

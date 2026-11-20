@@ -9,6 +9,8 @@ import { validateBody } from "@/lib/api-utils";
 const updateUserSchema = z.object({
   isActive: z.boolean().optional(),
   role: z.enum(["user", "admin"]).optional(),
+  firstName: z.string().min(1).max(50).trim().optional(),
+  lastName: z.string().min(1).max(50).trim().optional(),
 });
 
 export async function GET(
@@ -45,16 +47,25 @@ export async function GET(
         const walletTokens = tokens.filter(
           (t) => t.walletId.toString() === w._id.toString()
         );
+        const totalBalance = walletTokens.reduce(
+          (sum, t) => sum + t.balance * t.price, 0
+        );
         return {
           id: w._id,
           name: w.name,
           address: w.address,
+          color: w.color,
+          totalBalance,
           tokens: walletTokens.map((t) => ({
             id: t._id,
             name: t.name,
             symbol: t.symbol,
+            icon: t.icon,
+            price: t.price,
             balance: t.balance,
             value: t.balance * t.price,
+            color: t.color,
+            isCustom: t.isCustom,
           })),
         };
       }),

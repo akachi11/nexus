@@ -8,12 +8,9 @@ import { generateTokenKeys, generateWalletAddress } from "@/lib/token-keys";
 import { validateBody, successResponse, handleApiError, applyRateLimit } from "@/lib/api-utils";
 import { RATE_LIMITS } from "@/lib/middleware/rate-limit";
 import { cookies } from "next/headers";
+import { STANDARD_TOKENS } from "@/lib/standard-tokens";
 
-const DEFAULT_TOKENS = [
-  { name: "Bitcoin", symbol: "BTC", icon: "bitcoin", price: 97500, change24h: 2.4, color: "orange" },
-  { name: "Ethereum", symbol: "ETH", icon: "ethereum", price: 3450, change24h: -1.2, color: "blue" },
-  { name: "Tether", symbol: "USDT", icon: "dollar-sign", price: 1.0, change24h: 0.01, color: "green" },
-];
+const DEFAULT_TOKENS = STANDARD_TOKENS.slice(0, 3);
 
 export async function POST(req: NextRequest) {
   try {
