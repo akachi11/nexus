@@ -89,10 +89,10 @@ export default function WalletDetailPage() {
 
         <button
           onClick={handleCopy}
-          className="mt-4 flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-sm"
+          className="mt-4 flex max-w-full items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-sm"
         >
-          {wallet.address}
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          <span className="truncate">{wallet.address}</span>
+          {copied ? <Check className="h-4 w-4 shrink-0" /> : <Copy className="h-4 w-4 shrink-0" />}
         </button>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
